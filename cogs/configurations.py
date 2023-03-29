@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord.ext.commands.core import has_guild_permissions
 from utils.functions import *
 import tldextract
+import whois
 
 class configurations(commands.Cog):
     """All commands pertaining to configurations like adding or removing links."""
@@ -21,8 +22,10 @@ class configurations(commands.Cog):
         if not url:
             await ctx.send('No valid URL has been given.')
         else:
-            deleteurl(ctx.guild.id,tldextract.extract(url).registered_domain,tabletoedit)
-            await ctx.send('URL has been deleted!')
+            if deleteurl(ctx.guild.id,tldextract.extract(url).registered_domain,tabletoedit):
+                await ctx.send(f'URL `{tldextract.extract(url).registered_domain}` has been deleted!')
+            else:
+                await ctx.send(f'URL `{tldextract.extract(url).registered_domain}` has not been found.')
     
     @removelink.error
     async def removelink_error(self, ctx, error):
@@ -39,15 +42,22 @@ class configurations(commands.Cog):
     async def addlink(self, ctx, table:str, msg):
         """Add a link to the custom white/black list"""
         tabletoedit = whattabletoedit(table=table)
-        if tabletoedit != 'blacklist' and not tabletoedit != 'whitelist':
+        if tabletoedit != 'blacklist' and tabletoedit != 'whitelist':
             return await ctx.send(tabletoedit)
+        
+        reversetabletoedit = "whitelist" if tabletoedit == "blacklist" else "blacklist"
         
         url = findurls(msg)[0]
         if not url:
             await ctx.send('No valid URL has been given.')
         else:
-            inserturl(ctx.guild.id,tldextract.extract(url).registered_domain,tabletoedit)
-            await ctx.send('URL has been added!')
+            if checkurl(ctx.guild.id,tldextract.extract(url).registered_domain,reversetabletoedit):
+                await ctx.send(f'Error: URL `{tldextract.extract(url).registered_domain}` already exists in your {reversetabletoedit}, to remove it, use `{self.bot.command_prefix}removelink {reversetabletoedit} {tldextract.extract(url).registered_domain}`')
+            else:
+                inserturl(ctx.guild.id,tldextract.extract(url).registered_domain,tabletoedit)
+                await ctx.send(f'URL `{tldextract.extract(url).registered_domain}` has been added!')
+
+            
 
     @addlink.error
     async def addlink_error(self, ctx, error):
@@ -58,6 +68,15 @@ class configurations(commands.Cog):
             await ctx.send('This command may not be used in DMs.')
         elif isinstance(error, commands.MissingPermissions):
             await ctx.send('You are missing the required permissions.')
+
+    @commands.command()
+    async def whois(self, ctx, domain:str, msg):
+        """Check domain whois information"""
+        url = findurls(domain)[0]
+        w = whois.whois(url)
+        embed = discord.Embed(title=f'Whois Lookup - {url}' , description=w, color=0xffffff)
+        await ctx.send(embed=embed)
+
 
 def setup(bot):
     """Add class as a cog"""

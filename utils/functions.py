@@ -1,4 +1,5 @@
 import re
+import threading
 import sqlite3
 import os
 import tldextract
@@ -21,9 +22,15 @@ with open('blacklist.txt', 'r') as file:
 whitelist = [item for item in whitelist if not(item == '' or item.startswith('#'))]
 blacklist = [item for item in blacklist if not(item == '' or item.startswith('#'))]
 
-r = requests.get('https://api.hyperphish.com/gimme-domains')
-if r.status_code == 200:
-  blacklist = blacklist + r.json()
+def updateblacklist():
+  # Threaded function to update blacklist every hour
+  global blacklist
+  r = requests.get('https://api.hyperphish.com/gimme-domains')
+  if r.status_code == 200:
+    blacklist = blacklist + r.json()
+  threading.Timer(60*60, updateblacklist).start()
+
+updateblacklist()  
 
 def chunkarray(array: list, size: int):
   """Return a list of specified sized lists from a list"""
@@ -43,7 +50,7 @@ def whattabletoedit(table):
 
 def findurls(s):
   """Use a regex to pull URLs from a message"""
-  regex = r"(?i)\b(((https?|ftp|smtp):\/\/)?(www.)?[a-zA-Z0-9_.-]+\.[a-zA-Z0-9_.-]+(\/[a-zA-Z0-9#]+\/?)*/*)$"
+  regex = r"(?i)\b(((https?|ftp|smtp):\/\/)?(www.)?[a-zA-Z0-9_.-]+\.[a-zA-Z0-9_.-]+(\/[a-zA-Z0-9#]+\/?)*\/*)"
   url = re.findall(regex,s)
   return [x[0] for x in url]
 
@@ -75,8 +82,12 @@ def inserturl(guild_id, url, table):
       
 def deleteurl(guild_id, url, table):
   """Delete a URL from the specified table. EX: blacklist or whitelist"""
-  cur.execute('''DELETE FROM %s WHERE url = ? AND guild_id = ?''' % (table), (guild_id,url))
+  cur.execute('''DELETE FROM %s WHERE guild_id = ? AND url = ?''' % (table), (guild_id,url))
   con.commit()
+  if cur.rowcount < 1:
+    return False
+  else:
+    return True
 
 def retriveurls(guild_id, table):
   """Retrieve all URLs from the specified table. EX: blacklist or whitelist"""
@@ -106,7 +117,7 @@ def checkblacklisturl(guild_id, url):
       if urltocheck in blacklist:
         return True
   # Check in DB (TODO: Check subdomains too)
-  elif checkurl(guild_id, url, 'blacklist'):
+  if checkurl(guild_id, urlextract.registered_domain, 'blacklist'):
     return True
   # Pass
   else:

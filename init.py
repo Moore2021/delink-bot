@@ -8,7 +8,6 @@ import os
 description = '''Link filter bot.'''
 
 intents = discord.Intents.default()
-intents.members = True
 help_command = commands.DefaultHelpCommand(
     no_category = 'Need some help?'
 )
@@ -40,7 +39,8 @@ for filename in os.listdir('./cogs'):
 @bot.event
 async def on_message(message):
   await bot.process_commands(message)
-
+  if message.author.bot:
+    return
   # read blacklist.txt and whitelist.txt, and filter from there
   urllist = findurls(message.content)
   if urllist:
@@ -67,6 +67,11 @@ async def on_message_edit(before, after):
 async def on_guild_join(guild):
   channel = bot.get_channel(914397885129424976)
   await channel.send('[{0}] {1} ({2}members)'.format(len(bot.guilds), guild.name, guild.member_count))
+
+@bot.event
+async def on_guild_remove(guild):
+  channel = bot.get_channel(914397885129424976)
+  await channel.send('Guild left - [{0}] {1} ({2}members)'.format(len(bot.guilds), guild.name, guild.member_count))
 
 # Token
 with open('token.txt', 'r') as file:
